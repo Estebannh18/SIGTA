@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using WorkForceManagerAPI.Data;
 using WorkForceManagerAPI.Models.Common;
 using WorkForceManagerAPI.Models.DTOs.Request;
@@ -31,6 +32,10 @@ public class HorarioService(
 
     public async Task<ApiResponse<HorarioResponse>> CrearAsync(CrearHorarioRequest request, int usuarioId)
     {
+        if (!await db.Usuarios.AnyAsync(u => u.UsuarioId == usuarioId && u.Activo))
+            return ApiResponse<HorarioResponse>.Fail(
+                $"El usuario asignador con ID {usuarioId} no existe o está inactivo.");
+
         // Validar que el empleado existe
         var empleado = await empleadoRepo.ObtenerPorIdAsync(request.EmpleadoId);
         if (empleado is null)
@@ -77,6 +82,10 @@ public class HorarioService(
     public async Task<ApiResponse<AsignacionMasivaResponse>> AsignacionMasivaAsync(
         AsignacionMasivaRequest request, int usuarioId)
     {
+        if (!await db.Usuarios.AnyAsync(u => u.UsuarioId == usuarioId && u.Activo))
+            return ApiResponse<AsignacionMasivaResponse>.Fail(
+                $"El usuario asignador con ID {usuarioId} no existe o está inactivo.");
+
         if (request.FechaFin < request.FechaInicio)
             return ApiResponse<AsignacionMasivaResponse>.Fail("La fecha fin no puede ser menor a la fecha inicio.");
 

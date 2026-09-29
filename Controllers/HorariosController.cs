@@ -9,7 +9,9 @@ namespace WorkForceManagerAPI.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class HorariosController(IHorarioService service) : ControllerBase
+public class HorariosController(
+    IHorarioService service,
+    ILogger<HorariosController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Buscar([FromQuery] BuscarHorarioRequest filtro)
@@ -25,21 +27,27 @@ public class HorariosController(IHorarioService service) : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-[HttpPost]
-[Authorize(Roles = "Administrador,Supervisor")]
-public async Task<IActionResult> Crear([FromBody] CrearHorarioRequest request)
-{
-    if (!ModelState.IsValid) return BadRequest(ModelState);
-    var usuarioId = JwtHelper.ObtenerUsuarioId(User);
-    
-    // Log temporal para debug
-    Console.WriteLine($">>> UsuarioId del token: {usuarioId}");
-    
-    var result = await service.CrearAsync(request, usuarioId);
-    return result.Success
-        ? CreatedAtAction(nameof(ObtenerPorId), new { id = result.Data?.HorarioId }, result)
-        : BadRequest(result);
-}
+    [HttpPost]
+    [Authorize(Roles = "Administrador,Supervisor")]
+    public async Task<IActionResult> Crear([FromBody] CrearHorarioRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var usuarioId = JwtHelper.ObtenerUsuarioId(User);
+        logger.LogInformation(
+            "Creando horario. UsuarioId del token: {UsuarioId}; NameIdentifier: {NameIdentifier}; Sub: {Sub}",
+            usuarioId,
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+            User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value);
+
+        if (usuarioId <= 0)
+            return Unauthorized("El token no contiene un UsuarioId válido.");
+
+        var result = await service.CrearAsync(request, usuarioId);
+        return result.Success
+            ? CreatedAtAction(nameof(ObtenerPorId), new { id = result.Data?.HorarioId }, result)
+            : BadRequest(result);
+    }
 
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Administrador")]

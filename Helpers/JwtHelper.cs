@@ -37,8 +37,13 @@ public class JwtHelper(IConfiguration config)
         return (new JwtSecurityTokenHandler().WriteToken(token), expiracion);
     }
 
-    public static int ObtenerUsuarioId(ClaimsPrincipal user) =>
-        int.Parse(user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? "0");
+    public static int ObtenerUsuarioId(ClaimsPrincipal user)
+    {
+        var value = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+        return int.TryParse(value, out var usuarioId) ? usuarioId : 0;
+    }
 
     public static int ObtenerEmpleadoId(ClaimsPrincipal user) =>
         int.Parse(user.FindFirst("empleadoId")?.Value ?? "0");

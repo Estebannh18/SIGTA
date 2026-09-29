@@ -76,7 +76,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.EmpleadoId, x.Fecha }).IsUnique();
             e.HasOne(x => x.Empleado).WithMany(emp => emp.Horarios).HasForeignKey(x => x.EmpleadoId);
             e.HasOne(x => x.TipoTurno).WithMany(t => t.Horarios).HasForeignKey(x => x.TipoTurnoId);
-            e.HasOne(x => x.AsignadoPor).WithMany().HasForeignKey(x => x.AsignadoPorUsuarioId);
+            e.HasOne(x => x.AsignadoPor).WithMany().HasForeignKey(x => x.AsignadoPorUsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Asistencia
@@ -87,7 +88,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.MinutosRetraso).HasColumnType("decimal(6,2)");
             e.Property(x => x.EstadoAsistencia).HasMaxLength(20);
             e.HasOne(x => x.Empleado).WithMany(emp => emp.Asistencias).HasForeignKey(x => x.EmpleadoId);
-            e.HasOne(x => x.Horario).WithMany(h => h.Asistencias).HasForeignKey(x => x.HorarioId);
+            e.HasOne(x => x.Horario).WithMany(h => h.Asistencias).HasForeignKey(x => x.HorarioId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // CalculoHoras
@@ -101,7 +103,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.MinutosRetraso).HasColumnType("decimal(6,2)");
             e.Property(x => x.PorcentajeCumplimiento).HasColumnType("decimal(5,2)");
             e.HasOne(x => x.Empleado).WithMany().HasForeignKey(x => x.EmpleadoId);
-            e.HasOne(x => x.Horario).WithMany().HasForeignKey(x => x.HorarioId);
+            e.HasOne(x => x.Horario).WithMany().HasForeignKey(x => x.HorarioId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -21,6 +21,13 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<WorkForceManagerAPI.Data.AppDbContext>();
+    await WorkForceManagerAPI.Data.DevelopmentDataSeeder.SeedAsync(db);
+}
+
+if (app.Environment.IsDevelopment())
+{
     app.UseSwagger();
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "WorkForce API v1"));
 }
