@@ -11,4 +11,5 @@ public interface IAsistenciaService
     Task<ApiResponse<AsistenciaResponse>> RegistrarEntradaAsync(RegistrarEntradaRequest request);
     Task<ApiResponse<AsistenciaResponse>> RegistrarSalidaAsync(RegistrarSalidaRequest request);
     Task<ApiResponse<ResumenAsistenciaResponse>> ObtenerResumenAsync(int empleadoId, DateOnly fechaInicio, DateOnly fechaFin);
+    Task<ApiResponse<EstadoAsistenciaHoyResponse>> ObtenerEstadoHoyAsync(int empleadoId);
 }

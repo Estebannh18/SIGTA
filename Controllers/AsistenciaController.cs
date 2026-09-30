@@ -49,4 +49,11 @@ public class AsistenciaController(IAsistenciaService service) : ControllerBase
         var result = await service.ObtenerResumenAsync(empleadoId, fechaInicio, fechaFin);
         return result.Success ? Ok(result) : BadRequest(result);
     }
+
+    [HttpGet("estado-hoy/{empleadoId:int}")]
+    public async Task<IActionResult> ObtenerEstadoHoy(int empleadoId)
+    {
+        var result = await service.ObtenerEstadoHoyAsync(empleadoId);
+        return result.Success ? Ok(result) : NotFound(result);
+    }
 }

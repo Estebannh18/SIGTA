@@ -49,6 +49,7 @@ public static class ServiceExtensions
         services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
         services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<IHorarioRepository, HorarioRepository>();
+        services.AddScoped<IAsistenciaRepository, AsistenciaRepository>();
         return services;
     }
 
@@ -57,6 +58,9 @@ public static class ServiceExtensions
         services.AddScoped<IEmpleadoService, EmpleadoService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IHorarioService, HorarioService>();
+        services.AddScoped<IAsistenciaService, AsistenciaService>();
+        services.AddScoped<IReporteService, ReporteService>();
+        services.AddScoped<IReporteExportService, ReporteExportService>();
         services.AddScoped<JwtHelper>();
         return services;
     }

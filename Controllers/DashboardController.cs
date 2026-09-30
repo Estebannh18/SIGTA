@@ -12,16 +12,23 @@ namespace WorkForceManagerAPI.Controllers;
 public class DashboardController(AppDbContext db) : ControllerBase
 {
     [HttpGet("resumen")]
-    public async Task<ActionResult<DashboardResumenResponse>> Resumen([FromQuery] DateOnly? fecha)
+    public async Task<ActionResult<DashboardResumenResponse>> Resumen(
+        [FromQuery] DateOnly? fecha,
+        [FromQuery] DateOnly? fechaInicio,
+        [FromQuery] DateOnly? fechaFin)
     {
-        var dia = fecha ?? DateOnly.FromDateTime(DateTime.Today);
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var inicio = fechaInicio ?? fecha ?? hoy;
+        var fin = fechaFin ?? (fechaInicio.HasValue ? hoy : inicio);
+
         var empleadosActivos = await db.Empleados.CountAsync(x => x.Activo);
         var horarios = await db.Horarios
-            .Where(x => x.Fecha == dia)
+            .Where(x => x.Fecha >= inicio && x.Fecha <= fin)
             .Select(x => new { x.HorarioId })
             .ToListAsync();
         var asistencias = await db.Asistencias
-            .Where(x => DateOnly.FromDateTime(x.FechaHoraEntrada) == dia)
+            .Where(x => DateOnly.FromDateTime(x.FechaHoraEntrada) >= inicio
+                     && DateOnly.FromDateTime(x.FechaHoraEntrada) <= fin)
             .Select(x => new { x.HorarioId, x.EstadoAsistencia, x.HorasTrabajadasReal })
             .ToListAsync();
 
@@ -30,7 +37,9 @@ public class DashboardController(AppDbContext db) : ControllerBase
 
         return Ok(new DashboardResumenResponse
         {
-            Fecha = dia,
+            Fecha = inicio,
+            FechaInicio = inicio,
+            FechaFin = fin,
             EmpleadosActivos = empleadosActivos,
             HorariosProgramados = horarios.Count,
             AsistenciasRegistradas = asistencias.Count,
@@ -44,8 +53,10 @@ public class DashboardController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IEnumerable<DashboardAreaResponse>>> PorArea(
         [FromQuery] DateOnly? fechaInicio, [FromQuery] DateOnly? fechaFin)
     {
-        var inicio = fechaInicio ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fin = fechaFin ?? DateOnly.FromDateTime(DateTime.Today);
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var inicio = fechaInicio ?? hoy.AddDays(-29);
+        var fin = fechaFin ?? hoy;
+
         var rows = await db.Horarios
             .Where(x => x.Fecha >= inicio && x.Fecha <= fin)
             .Select(x => new
@@ -73,23 +84,64 @@ public class DashboardController(AppDbContext db) : ControllerBase
     }
 
     [HttpGet("tendencia")]
-    public async Task<ActionResult<IEnumerable<DashboardTendenciaResponse>>> Tendencia([FromQuery] int meses = 6)
+    public async Task<ActionResult<IEnumerable<DashboardTendenciaResponse>>> Tendencia(
+        [FromQuery] DateOnly? fechaInicio,
+        [FromQuery] DateOnly? fechaFin,
+        [FromQuery] int meses = 6)
     {
         meses = Math.Clamp(meses, 1, 12);
-        var desde = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-(meses - 1));
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+
+        DateOnly inicio;
+        DateOnly fin;
+        if (fechaInicio.HasValue)
+        {
+            inicio = fechaInicio.Value;
+            fin = fechaFin ?? hoy;
+        }
+        else
+        {
+            fin = hoy;
+            inicio = DateOnly.FromDateTime(new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-(meses - 1)));
+        }
+
+        var desde = inicio.ToDateTime(TimeOnly.MinValue);
+        var hasta = fin.ToDateTime(TimeOnly.MaxValue);
+
         var rows = await db.Asistencias
-            .Where(x => x.FechaHoraEntrada >= desde)
+            .Where(x => x.FechaHoraEntrada >= desde && x.FechaHoraEntrada <= hasta)
             .Select(x => new { x.FechaHoraEntrada, x.EstadoAsistencia, x.HorasTrabajadasReal })
             .ToListAsync();
 
+        var dias = fin.DayNumber - inicio.DayNumber + 1;
+
+        if (dias <= 35)
+        {
+            return Ok(rows.GroupBy(x => DateOnly.FromDateTime(x.FechaHoraEntrada))
+                .OrderBy(g => g.Key)
+                .Select(group => new DashboardTendenciaResponse
+                {
+                    Fecha = group.Key,
+                    Periodo = group.Key.ToString("yyyy-MM-dd"),
+                    HorasTrabajadas = Math.Round(group.Sum(x => x.HorasTrabajadasReal ?? 0), 2),
+                    Asistencias = group.Count(),
+                    Tardanzas = group.Count(x => x.EstadoAsistencia == "Tardanza")
+                }));
+        }
+
         return Ok(rows.GroupBy(x => new { x.FechaHoraEntrada.Year, x.FechaHoraEntrada.Month })
             .OrderBy(x => x.Key.Year).ThenBy(x => x.Key.Month)
-            .Select(group => new DashboardTendenciaResponse
+            .Select(group =>
             {
-                Periodo = $"{group.Key.Year}-{group.Key.Month:00}",
-                HorasTrabajadas = Math.Round(group.Sum(x => x.HorasTrabajadasReal ?? 0), 2),
-                Asistencias = group.Count(),
-                Tardanzas = group.Count(x => x.EstadoAsistencia == "Tardanza")
+                var fecha = new DateOnly(group.Key.Year, group.Key.Month, 1);
+                return new DashboardTendenciaResponse
+                {
+                    Fecha = fecha,
+                    Periodo = fecha.ToString("yyyy-MM"),
+                    HorasTrabajadas = Math.Round(group.Sum(x => x.HorasTrabajadasReal ?? 0), 2),
+                    Asistencias = group.Count(),
+                    Tardanzas = group.Count(x => x.EstadoAsistencia == "Tardanza")
+                };
             }));
     }
 }

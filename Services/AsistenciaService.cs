@@ -152,6 +152,48 @@ public class AsistenciaService(
         return ApiResponse<ResumenAsistenciaResponse>.Ok(resumen);
     }
 
+    public async Task<ApiResponse<EstadoAsistenciaHoyResponse>> ObtenerEstadoHoyAsync(int empleadoId)
+    {
+        var empleado = await empleadoRepo.ObtenerPorIdAsync(empleadoId);
+        if (empleado is null)
+            return ApiResponse<EstadoAsistenciaHoyResponse>.Fail($"Empleado con ID {empleadoId} no encontrado.");
+
+        var hoy = DateOnly.FromDateTime(DateTime.Now);
+        var horario = await horarioRepo.ObtenerPorEmpleadoYFechaAsync(empleadoId, hoy);
+        var activa = await asistenciaRepo.ObtenerEntradaActivaAsync(empleadoId);
+        var tieneHoy = activa is not null || await asistenciaRepo.TieneEntradaHoyAsync(empleadoId);
+
+        Asistencia? ultima = activa;
+        if (ultima is null && tieneHoy)
+        {
+            var (items, _) = await asistenciaRepo.BuscarAsync(new BuscarAsistenciaRequest
+            {
+                EmpleadoId = empleadoId,
+                FechaInicio = hoy,
+                FechaFin = hoy,
+                PageSize = 20
+            });
+            ultima = items.FirstOrDefault();
+        }
+
+        return ApiResponse<EstadoAsistenciaHoyResponse>.Ok(new EstadoAsistenciaHoyResponse
+        {
+            EmpleadoId = empleado.EmpleadoId,
+            NombreCompleto = $"{empleado.Nombres} {empleado.Apellidos}",
+            Area = empleado.Area?.Nombre ?? string.Empty,
+            Cargo = empleado.Cargo?.Nombre ?? string.Empty,
+            TieneHorarioHoy = horario is not null,
+            TipoTurno = horario?.TipoTurno?.Nombre,
+            HoraInicioProgramada = horario?.HoraInicioProgramada,
+            HoraFinProgramada = horario?.HoraFinProgramada,
+            TieneEntradaActiva = activa is not null,
+            YaRegistroHoy = tieneHoy,
+            FechaHoraEntrada = ultima?.FechaHoraEntrada,
+            EstadoAsistencia = ultima?.EstadoAsistencia,
+            HorasTrabajadasReal = ultima?.HorasTrabajadasReal
+        });
+    }
+
     private static AsistenciaResponse MapToResponse(Asistencia a) => new()
     {
         AsistenciaId         = a.AsistenciaId,
