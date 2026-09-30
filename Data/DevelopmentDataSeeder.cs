@@ -47,33 +47,55 @@ public static class DevelopmentDataSeeder
 
         if (!await db.Empleados.AnyAsync())
         {
-            var area = await db.Areas.OrderBy(x => x.AreaId).FirstAsync();
+            var areaOp = await db.Areas.FirstAsync(x => x.Nombre == "Operaciones");
+            var areaTec = await db.Areas.FirstAsync(x => x.Nombre == "Tecnología");
+            var areaAdm = await db.Areas.FirstAsync(x => x.Nombre == "Administración");
             var cargo = await db.Cargos.OrderBy(x => x.CargoId).FirstAsync();
 
-            db.Empleados.Add(new Empleado
-            {
-                NumeroDocumento = "DEV-0001",
-                Nombres = "Administrador",
-                Apellidos = "Demo",
-                AreaId = area.AreaId,
-                CargoId = cargo.CargoId,
-                FechaIngreso = DateOnly.FromDateTime(DateTime.Today)
-            });
+            db.Empleados.AddRange(
+                new Empleado
+                {
+                    NumeroDocumento = "DEV-0001",
+                    Nombres = "Administrador",
+                    Apellidos = "Demo",
+                    AreaId = areaAdm.AreaId,
+                    CargoId = cargo.CargoId,
+                    FechaIngreso = DateOnly.FromDateTime(DateTime.Today)
+                },
+                new Empleado
+                {
+                    NumeroDocumento = "DEV-0002",
+                    Nombres = "Supervisor",
+                    Apellidos = "Demo",
+                    AreaId = areaOp.AreaId,
+                    CargoId = cargo.CargoId,
+                    FechaIngreso = DateOnly.FromDateTime(DateTime.Today)
+                },
+                new Empleado
+                {
+                    NumeroDocumento = "DEV-0003",
+                    Nombres = "Empleado",
+                    Apellidos = "Demo",
+                    AreaId = areaTec.AreaId,
+                    CargoId = cargo.CargoId,
+                    FechaIngreso = DateOnly.FromDateTime(DateTime.Today)
+                });
             await db.SaveChangesAsync();
         }
 
         if (!await db.Usuarios.AnyAsync())
         {
-            var empleado = await db.Empleados.OrderBy(x => x.EmpleadoId).FirstAsync();
-            var rol = await db.Roles.FirstAsync(x => x.Nombre == "Administrador");
+            var admin   = await db.Empleados.FirstAsync(x => x.NumeroDocumento == "DEV-0001");
+            var sup     = await db.Empleados.FirstAsync(x => x.NumeroDocumento == "DEV-0002");
+            var emp     = await db.Empleados.FirstAsync(x => x.NumeroDocumento == "DEV-0003");
+            var rolAdm  = await db.Roles.FirstAsync(x => x.Nombre == "Administrador");
+            var rolSup  = await db.Roles.FirstAsync(x => x.Nombre == "Supervisor");
+            var rolEmp  = await db.Roles.FirstAsync(x => x.Nombre == "Empleado");
 
-            db.Usuarios.Add(new Usuario
-            {
-                EmpleadoId = empleado.EmpleadoId,
-                Email = "admin@workforce.local",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
-                RolId = rol.RolId
-            });
+            db.Usuarios.AddRange(
+                new Usuario { EmpleadoId = admin.EmpleadoId, Email = "admin@workforce.local", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"), RolId = rolAdm.RolId },
+                new Usuario { EmpleadoId = sup.EmpleadoId, Email = "supervisor@workforce.local", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Super123!"), RolId = rolSup.RolId },
+                new Usuario { EmpleadoId = emp.EmpleadoId, Email = "empleado@workforce.local", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Empleado123!"), RolId = rolEmp.RolId });
             await db.SaveChangesAsync();
         }
 
@@ -112,6 +134,42 @@ public static class DevelopmentDataSeeder
                 });
                 await db.SaveChangesAsync();
             }
+        }
+
+        // Mantiene una jornada actual visible en el dashboard sin duplicar datos.
+        var adminUsuario = await db.Usuarios
+            .Include(x => x.Empleado)
+            .FirstOrDefaultAsync(x => x.Email == "admin@workforce.local");
+        var turnoDemo = await db.TiposTurno.OrderBy(x => x.TipoTurnoId).FirstAsync();
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+
+        if (adminUsuario is not null && !await db.Horarios.AnyAsync(x =>
+                x.EmpleadoId == adminUsuario.EmpleadoId && x.Fecha == hoy))
+        {
+            var horario = new Horario
+            {
+                EmpleadoId = adminUsuario.EmpleadoId,
+                TipoTurnoId = turnoDemo.TipoTurnoId,
+                Fecha = hoy,
+                HoraInicioProgramada = turnoDemo.HoraInicio,
+                HoraFinProgramada = turnoDemo.HoraFin,
+                HorasProgramadas = turnoDemo.HorasEsperadas,
+                AsignadoPorUsuarioId = adminUsuario.UsuarioId,
+                Observaciones = "Registro demo actual para validar el dashboard."
+            };
+
+            db.Horarios.Add(horario);
+            await db.SaveChangesAsync();
+            db.Asistencias.Add(new Asistencia
+            {
+                EmpleadoId = adminUsuario.EmpleadoId,
+                HorarioId = horario.HorarioId,
+                FechaHoraEntrada = hoy.ToDateTime(turnoDemo.HoraInicio).AddMinutes(4),
+                FechaHoraSalida = hoy.ToDateTime(turnoDemo.HoraFin),
+                HorasTrabajadasReal = turnoDemo.HorasEsperadas,
+                EstadoAsistencia = "Presente"
+            });
+            await db.SaveChangesAsync();
         }
     }
 }

@@ -4,8 +4,8 @@ import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useNavigate } 
 import axios from 'axios'
 import {
   Activity, AlertTriangle, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2,
-  ChevronRight, ClipboardList, Clock3, FileBarChart, FileSpreadsheet, FileText,
-  Layers, LayoutDashboard, LogIn, LogOut, Menu, Pencil, Plus, Power, PowerOff,
+  ChevronLeft, ChevronRight, ClipboardList, Clock3, FileBarChart, FileSpreadsheet, FileText,
+  Layers, LayoutDashboard, LogIn, LogOut, Menu, Pencil, Plus, Power, PowerOff, RefreshCw,
   Search, ShieldCheck, Trash2, UserCheck, Users, X
 } from 'lucide-react'
 import './styles.css'
@@ -40,17 +40,36 @@ function RequireAuth() {
   return localStorage.getItem('wf_token') ? <Outlet /> : <Navigate to="/login" replace />
 }
 
+const esAdmin = user => user?.rol === 'Administrador'
+const esSupervisor = user => user?.rol === 'Supervisor'
+const esEmpleado = user => user?.rol === 'Empleado'
+const puedeGestionar = user => esAdmin(user) || esSupervisor(user)
+
 const navigation = [
   { to: '/', label: 'Resumen', icon: LayoutDashboard, end: true },
-  { to: '/empleados', label: 'Empleados', icon: Users },
+  { to: '/empleados', label: 'Empleados', icon: Users, roles: ['Administrador', 'Supervisor'] },
   { to: '/horarios', label: 'Horarios', icon: CalendarDays },
   { to: '/asistencia', label: 'Asistencia', icon: Clock3 },
-  { to: '/reportes', label: 'Reportes', icon: FileBarChart },
+  { to: '/reportes', label: 'Reportes', icon: FileBarChart, roles: ['Administrador', 'Supervisor'] },
 ]
+
+function navItems(rol) {
+  return navigation.filter(item => !item.roles || item.roles.includes(rol))
+}
 
 function AppShell() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [userOpen, setUserOpen] = useState(false)
+
+  useEffect(() => {
+    if (!userOpen) return
+    const close = () => setUserOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [userOpen])
+
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
       <div className="brand">
@@ -60,14 +79,14 @@ function AppShell() {
       </div>
       <div className="workspace-label">CONTROL CENTER</div>
       <nav>
-        {navigation.map(({ to, label, icon: Icon, end }) =>
+        {navItems(user?.rol).map(({ to, label, icon: Icon, end }) =>
           <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)}>
             <Icon size={18} /><span>{label}</span>{label === 'Resumen' && <span className="nav-pulse" />}
           </NavLink>)}
       </nav>
       <div className="sidebar-bottom">
         <div className="security-note"><ShieldCheck size={18} /><div><strong>Entorno seguro</strong><span>Sesión protegida</span></div></div>
-        <button className="logout-button" onClick={logout}><LogOut size={17} /> Cerrar sesión</button>
+        <button className="logout-button" onClick={() => { logout(); navigate('/login', { replace: true }) }}><LogOut size={17} /> Cerrar sesión</button>
       </div>
     </aside>
     <main className="main-area">
@@ -76,7 +95,24 @@ function AppShell() {
         <div className="breadcrumb"><span>Workspace</span><ChevronRight size={14} /><strong>Operaciones</strong></div>
         <div className="topbar-actions">
           <div className="live-status"><i /> Sistema operativo</div>
-          <div className="avatar">{user?.nombreCompleto?.[0] || 'A'}</div>
+          <div className="user-menu">
+            <button className="user-chip" onClick={e => { e.stopPropagation(); setUserOpen(!userOpen) }} type="button">
+              <div className="avatar">{user?.nombreCompleto?.[0] || 'A'}</div>
+              <span className="user-chip-info">
+                <strong>{user?.nombreCompleto || 'Usuario'}</strong>
+                <small>{user?.rol || ''}</small>
+              </span>
+              <ChevronRight size={14} className={`user-chevron ${userOpen ? 'open' : ''}`} />
+            </button>
+            {userOpen && <div className="user-dropdown">
+              <div className="user-dropdown-head">
+                <strong>{user?.nombreCompleto}</strong>
+                <span>{user?.email}</span>
+                <em className={`role-tag ${user?.rol?.toLowerCase()}`}>{user?.rol}</em>
+              </div>
+              <button className="user-dropdown-logout" onClick={() => { logout(); navigate('/login', { replace: true }) }}><LogOut size={15} /> Cerrar sesión</button>
+            </div>}
+          </div>
         </div>
       </header>
       <div className="content"><Outlet /></div>
@@ -201,6 +237,77 @@ function Metric({ tone, icon: Icon, label, value, unit }) {
   </div>
 }
 
+function MiDashboard() {
+  const { user } = useAuth()
+  const [estado, setEstado] = useState(null)
+  const [resumen, setResumen] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const now = new Date()
+    const inicio = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+    const fin = now.toISOString().slice(0, 10)
+    Promise.all([
+      api.get(`/Asistencia/estado-hoy/${user.empleadoId}`),
+      api.get(`/Asistencia/resumen/${user.empleadoId}`, { params: { fechaInicio: inicio, fechaFin: fin } })
+    ])
+      .then(([e, r]) => { setEstado(e.data.data); setResumen(r.data.data) })
+      .catch(() => setError('No pudimos cargar tu información. Verifica que la API esté ejecutándose.'))
+  }, [user.empleadoId])
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
+  const firstName = user?.nombreCompleto?.split(' ')?.[0] || 'Colaborador'
+  const turnoInicio = horaDe(estado?.horaInicioProgramada)
+  const turnoFin = horaDe(estado?.horaFinProgramada)
+
+  return <>
+    <PageHeader
+      eyebrow={`ROL · ${user.rol.toUpperCase()}`}
+      title={`${greeting}, ${firstName}.`}
+      description="Tu jornada de hoy y tu resumen del mes."
+    />
+
+    {error && <div className="notice error">{error}</div>}
+
+    <section className="panel jornada-panel">
+      <div className="panel-heading">
+        <div><p className="eyebrow">TU JORNADA DE HOY</p><h2>Estado del día</h2></div>
+        <span className={`status-pill ${estado?.tieneEntradaActiva ? 'success' : 'muted'}`}><i /> {estado?.tieneEntradaActiva ? 'En curso' : estado?.yaRegistroHoy ? (estado?.estadoAsistencia ?? 'Registrada') : 'Sin registro'}</span>
+      </div>
+      <div className="jornada-body">
+        <Donut value={resumen?.cumplimientoPromedio ?? 0} />
+        <div className="jornada-metrics">
+          <Metric tone="slate" icon={CalendarDays} label="Turno de hoy" value={estado?.tieneHorarioHoy ? `${turnoInicio ?? ''} - ${turnoFin ?? ''}` : 'Sin horario'} />
+          <Metric tone="lime" icon={CheckCircle2} label="Días con registro" value={resumen?.diasConRegistro ?? 0} />
+          <Metric tone="orange" icon={AlertTriangle} label="Tardanzas del mes" value={resumen?.tardanzas ?? 0} />
+          <Metric tone="blue" icon={Activity} label="Horas del mes" value={resumen?.totalHorasTrabajadas ?? 0} unit="h" />
+        </div>
+      </div>
+      <div className="jornada-footer">
+        <div className="jornada-footer-head"><span>Entrada registrada</span><strong>{horaCorta(estado?.fechaHoraEntrada) ?? '—'}</strong></div>
+        <div className="progress"><i style={{ width: `${Math.min(resumen?.cumplimientoPromedio ?? 0, 100)}%` }} /></div>
+      </div>
+    </section>
+
+    <section className="panel area-panel">
+      <div className="panel-heading">
+        <div><p className="eyebrow">TU RESUMEN DEL MES</p><h2>Detalle de asistencia</h2></div>
+        <Clock3 size={20} className="heading-icon" />
+      </div>
+      <div className="resumen-grid">
+        <div className="resumen-item"><span>Presentes</span><strong>{resumen?.presentes ?? 0}</strong></div>
+        <div className="resumen-item"><span>Tardanzas</span><strong>{resumen?.tardanzas ?? 0}</strong></div>
+        <div className="resumen-item"><span>Ausencias justificadas</span><strong>{resumen?.ausenciasJustificadas ?? 0}</strong></div>
+        <div className="resumen-item"><span>Horas trabajadas</span><strong>{resumen?.totalHorasTrabajadas ?? 0}h</strong></div>
+        <div className="resumen-item"><span>Horas extra</span><strong className="success-text">{resumen?.totalHorasExtras ?? 0}h</strong></div>
+        <div className="resumen-item"><span>Horas faltantes</span><strong className="warning-text">{resumen?.totalHorasFaltantes ?? 0}h</strong></div>
+        <div className="resumen-item wide"><span>Cumplimiento promedio</span><div className="progress"><i style={{ width: `${Math.min(resumen?.cumplimientoPromedio ?? 0, 100)}%` }} /></div><strong>{resumen?.cumplimientoPromedio ?? 0}%</strong></div>
+      </div>
+    </section>
+  </>
+}
+
 function Dashboard() {
   const { user } = useAuth()
   const [summary, setSummary] = useState(null)
@@ -208,6 +315,7 @@ function Dashboard() {
   const [trend, setTrend] = useState([])
   const [error, setError] = useState('')
   const [range, setRange] = useState('today')
+  const [refreshing, setRefreshing] = useState(false)
 
   function dateRange(sel) {
     const now = new Date()
@@ -224,15 +332,26 @@ function Dashboard() {
     return { fechaInicio: toISO(monday), fechaFin: toISO(today) }
   }
 
+  async function loadDashboard() {
+    setRefreshing(true)
+    setError('')
+    try {
+      const rango = dateRange(range)
+      const [s, a, t] = await Promise.all([
+        api.get('/Dashboard/resumen', { params: rango }),
+        api.get('/Dashboard/areas', { params: rango }),
+        api.get('/Dashboard/tendencia', { params: rango })
+      ])
+      setSummary(s.data); setAreas(a.data); setTrend(t.data)
+    } catch {
+      setError('No pudimos cargar los indicadores. Verifica que la API esté ejecutándose.')
+    } finally { setRefreshing(false) }
+  }
+
   useEffect(() => {
-    const rango = dateRange(range)
-    Promise.all([
-      api.get('/Dashboard/resumen', { params: rango }),
-      api.get('/Dashboard/areas', { params: rango }),
-      api.get('/Dashboard/tendencia', { params: rango })
-    ])
-      .then(([s, a, t]) => { setSummary(s.data); setAreas(a.data); setTrend(t.data) })
-      .catch(() => setError('No pudimos cargar los indicadores. Verifica que la API esté ejecutándose.'))
+    loadDashboard()
+    const interval = window.setInterval(loadDashboard, 30000)
+    return () => window.clearInterval(interval)
   }, [range])
 
   const now = new Date()
@@ -263,11 +382,16 @@ function Dashboard() {
       title={`${greeting}, ${firstName}.`}
       description={`Resumen operativo de tu equipo · ${rangeLabel}`}
       action={
-        <div className="segmented">
-          {[{ id: 'today', label: 'Hoy' }, { id: 'week', label: 'Semana' }, { id: 'month', label: 'Mes' }].map(opt =>
-            <button key={opt.id} className={range === opt.id ? 'active' : ''} onClick={() => setRange(opt.id)}>
-              {opt.label}
-            </button>)}
+        <div className="dashboard-actions">
+          <div className="segmented">
+            {[{ id: 'today', label: 'Hoy' }, { id: 'week', label: 'Semana' }, { id: 'month', label: 'Mes' }].map(opt =>
+              <button key={opt.id} className={range === opt.id ? 'active' : ''} onClick={() => setRange(opt.id)}>
+                {opt.label}
+              </button>)}
+          </div>
+          <button className="icon-action" onClick={loadDashboard} title="Actualizar indicadores" disabled={refreshing}>
+            <RefreshCw size={16} className={refreshing ? 'spin' : ''} />
+          </button>
         </div>
       }
     />
@@ -660,27 +784,99 @@ function AsignacionMasivaModal({ catalogs, onClose, onDone }) {
   </Modal>
 }
 
+const isoDate = d => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10) }
+const startOfWeek = d => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x }
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const TONOS = ['var(--accent)', 'var(--warning)', 'var(--success)']
+
+function ScheduleCalendar({ rows, anchor, vista, turnos, onPrev, onNext, onToday }) {
+  const tone = nombre => { const i = turnos.findIndex(t => t.nombre === nombre); return i < 0 ? 0 : i % 3 }
+
+  const inicio = vista === 'semana'
+    ? startOfWeek(anchor)
+    : startOfWeek(new Date(anchor.getFullYear(), anchor.getMonth(), 1))
+  const total = vista === 'semana' ? 7 : 42
+  const days = Array.from({ length: total }, (_, i) => addDays(inicio, i))
+
+  const byDay = {}
+  rows.forEach(r => { (byDay[r.fecha] ||= []).push(r) })
+
+  const finSemana = addDays(startOfWeek(anchor), 6)
+  const title = vista === 'semana'
+    ? `${startOfWeek(anchor).getDate()} ${MESES[startOfWeek(anchor).getMonth()].slice(0, 3)} – ${finSemana.getDate()} ${MESES[finSemana.getMonth()].slice(0, 3)} ${finSemana.getFullYear()}`
+    : `${MESES[anchor.getMonth()]} ${anchor.getFullYear()}`
+
+  const maxChips = vista === 'semana' ? 99 : 3
+  const hoyKey = isoDate(new Date())
+
+  return <section className="panel calendar">
+    <div className="cal-toolbar">
+      <div className="cal-title"><h2>{title}</h2></div>
+      <div className="cal-nav">
+        <button className="icon-action" onClick={onPrev} title="Anterior"><ChevronLeft size={16} /></button>
+        <button className="ghost-button tiny" onClick={onToday}>Hoy</button>
+        <button className="icon-action" onClick={onNext} title="Siguiente"><ChevronRight size={16} /></button>
+      </div>
+    </div>
+    {turnos.length > 0 && <div className="cal-legend">
+      {turnos.map((t, i) => <span key={t.id}><i style={{ background: TONOS[i % 3] }} /> {t.nombre}</span>)}
+    </div>}
+    <div className="cal-dow">{DIAS.map(d => <span key={d}>{d}</span>)}</div>
+    <div className={`cal-grid ${vista}`}>
+      {days.map((d, i) => {
+        const key = isoDate(d)
+        const items = byDay[key] || []
+        const fuera = vista === 'mes' && d.getMonth() !== anchor.getMonth()
+        return <div key={i} className={`cal-cell ${fuera ? 'out' : ''} ${key === hoyKey ? 'today' : ''}`}>
+          <div className="cal-date"><span>{d.getDate()}</span>{items.length > 0 && <span className="cal-more">{items.length}</span>}</div>
+          <div className="cal-entries">
+            {items.slice(0, maxChips).map(r => <div className={`cal-chip t${tone(r.tipoTurno)}`} key={r.horarioId}
+              title={`${r.nombreCompleto} · ${r.tipoTurno} · ${horaDe(r.horaInicioProgramada)}–${horaDe(r.horaFinProgramada)}`}>
+              <span className="cal-chip-avatar">{inicialesDe({ nombreCompleto: r.nombreCompleto })}</span>
+              <span className="cal-chip-name">{r.nombreCompleto.split(' ')[0]}</span>
+              <span className="cal-chip-time">{horaDe(r.horaInicioProgramada)}</span>
+            </div>)}
+            {items.length > maxChips && <span className="cal-more">+{items.length - maxChips} más</span>}
+            {!items.length && vista === 'semana' && <span className="cal-empty">Sin horarios</span>}
+          </div>
+        </div>
+      })}
+    </div>
+  </section>
+}
+
 function Schedules() {
   const { user } = useAuth()
-  const hoy = new Date().toISOString().slice(0, 10)
-  const primerDia = (() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10) })()
+  const hoy = new Date()
+  const primerDia = isoDate(new Date(hoy.getFullYear(), hoy.getMonth(), 1))
+  const [vista, setVista] = useState('lista')
+  const [anchor, setAnchor] = useState(new Date())
   const [fechaInicio, setFechaInicio] = useState(primerDia)
-  const [fechaFin, setFechaFin] = useState(hoy)
+  const [fechaFin, setFechaFin] = useState(isoDate(hoy))
   const [areaId, setAreaId] = useState('')
   const [data, setData] = useState(null)
   const [catalogs, setCatalogs] = useState({ areas: [], turnos: [] })
   const [feedback, setFeedback] = useState(null)
   const [modal, setModal] = useState(null)
 
-  const puedeGestionar = ['Administrador', 'Supervisor'].includes(user?.rol)
-  const esAdmin = user?.rol === 'Administrador'
+  const rangoCalendario = () => {
+    if (vista === 'semana') {
+      const s = startOfWeek(anchor)
+      return { fechaInicio: isoDate(s), fechaFin: isoDate(addDays(s, 6)) }
+    }
+    const s = startOfWeek(new Date(anchor.getFullYear(), anchor.getMonth(), 1))
+    return { fechaInicio: isoDate(s), fechaFin: isoDate(addDays(s, 41)) }
+  }
 
   const load = () => {
-    api.get('/Horarios', { params: { fechaInicio, fechaFin, areaId: areaId || undefined, pageSize: 100 } })
+    const p = vista === 'lista' ? { fechaInicio, fechaFin } : rangoCalendario()
+    api.get('/Horarios', { params: { ...p, areaId: areaId || undefined, pageSize: 500 } })
       .then(r => setData(r.data))
       .catch(() => setFeedback({ type: 'error', message: 'No pudimos cargar los horarios.' }))
   }
-  useEffect(() => { load() }, [fechaInicio, fechaFin, areaId])
+  useEffect(() => { load() }, [vista, anchor, fechaInicio, fechaFin, areaId])
   useEffect(() => {
     Promise.all([api.get('/Catalogos/areas'), api.get('/Catalogos/tipos-turno')])
       .then(([a, t]) => setCatalogs({ areas: a.data, turnos: t.data }))
@@ -700,14 +896,21 @@ function Schedules() {
     }
   }
 
+  const shift = n => setAnchor(v => vista === 'mes' ? new Date(v.getFullYear(), v.getMonth() + n, 1) : addDays(v, n * 7))
+
   const rows = data?.data || []
+  const esRolEmpleado = esEmpleado(user)
+  const puedeAsignar = puedeGestionar(user)
+  const esSoloAdmin = esAdmin(user)
 
   return <>
     <PageHeader
       eyebrow="PLANIFICACIÓN OPERATIVA"
-      title="Horarios"
-      description="Diseña jornadas que se ajustan al ritmo de cada equipo."
-      action={puedeGestionar && <div className="report-actions">
+      title={esRolEmpleado ? 'Mis horarios' : 'Horarios'}
+      description={esRolEmpleado
+        ? 'Consulta los turnos que tienes asignados.'
+        : 'Diseña jornadas que se ajustan al ritmo de cada equipo.'}
+      action={puedeAsignar && <div className="report-actions">
         <button className="ghost-button" onClick={() => setModal('masiva')}><Layers size={16} /> Asignación masiva</button>
         <button className="primary-button compact" onClick={() => setModal('individual')}><CalendarDays size={16} /> Asignar horario</button>
       </div>}
@@ -715,42 +918,61 @@ function Schedules() {
 
     {feedback && <div className={`notice ${feedback.type}`}>{feedback.message}</div>}
 
-    <section className="panel list-panel">
-      <div className="list-toolbar">
-        <div className="toolbar-filters">
+    <section className="panel report-controls">
+      <div className="segmented">
+        {[{ id: 'lista', label: 'Lista' }, { id: 'semana', label: 'Semana' }, { id: 'mes', label: 'Mes' }].map(v =>
+          <button key={v.id} className={vista === v.id ? 'active' : ''} onClick={() => setVista(v.id)}>{v.label}</button>)}
+      </div>
+      <div className="toolbar-filters">
+        {vista === 'lista' && <>
           <label className="filter-field">Desde<input type="date" value={fechaInicio} max={fechaFin} onChange={e => setFechaInicio(e.target.value)} /></label>
           <label className="filter-field">Hasta<input type="date" value={fechaFin} min={fechaInicio} onChange={e => setFechaFin(e.target.value)} /></label>
-          <label className="filter-field">Área
-            <select value={areaId} onChange={e => setAreaId(e.target.value)}>
-              <option value="">Todas</option>
-              {catalogs.areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-            </select>
-          </label>
-        </div>
-        <span className="result-count">{data?.totalRecords ?? 0} registros</span>
-      </div>
-
-      <div className="table-wrap">
-        <table>
-          <thead><tr><th>Empleado</th><th>Área</th><th>Fecha</th><th>Turno</th><th>Jornada</th><th>Horas</th><th>Asignado por</th>{esAdmin && <th>Acciones</th>}</tr></thead>
-          <tbody>
-            {rows.map(row => <tr key={row.horarioId}>
-              <td><strong>{row.nombreCompleto}</strong></td>
-              <td>{row.area}</td>
-              <td>{row.fecha}</td>
-              <td><span className="turno-tag">{row.tipoTurno}</span></td>
-              <td>{horaDe(row.horaInicioProgramada)} – {horaDe(row.horaFinProgramada)}</td>
-              <td>{row.horasProgramadas}h</td>
-              <td>{row.asignadoPor}</td>
-              {esAdmin && <td><div className="row-actions">
-                <button className="icon-action danger" title="Eliminar" onClick={() => eliminar(row)}><Trash2 size={15} /></button>
-              </div></td>}
-            </tr>)}
-            {!rows.length && <tr><td colSpan={esAdmin ? 8 : 7} className="empty-cell">No hay horarios en el período seleccionado.</td></tr>}
-          </tbody>
-        </table>
+        </>}
+        <label className="filter-field">Área
+          <select value={areaId} onChange={e => setAreaId(e.target.value)}>
+            <option value="">Todas</option>
+            {catalogs.areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+          </select>
+        </label>
       </div>
     </section>
+
+    {vista === 'lista'
+      ? <section className="panel list-panel">
+          <div className="list-toolbar">
+            <span className="eyebrow">AGENDA DE TURNOS</span>
+            <span className="result-count">{data?.totalRecords ?? 0} registros</span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Empleado</th><th>Área</th><th>Fecha</th><th>Turno</th><th>Jornada</th><th>Horas</th><th>Asignado por</th>{esSoloAdmin && <th>Acciones</th>}</tr></thead>
+              <tbody>
+                {rows.map(row => <tr key={row.horarioId}>
+                  <td><strong>{row.nombreCompleto}</strong></td>
+                  <td>{row.area}</td>
+                  <td>{row.fecha}</td>
+                  <td><span className="turno-tag">{row.tipoTurno}</span></td>
+                  <td>{horaDe(row.horaInicioProgramada)} – {horaDe(row.horaFinProgramada)}</td>
+                  <td>{row.horasProgramadas}h</td>
+                  <td>{row.asignadoPor}</td>
+                  {esSoloAdmin && <td><div className="row-actions">
+                    <button className="icon-action danger" title="Eliminar" onClick={() => eliminar(row)}><Trash2 size={15} /></button>
+                  </div></td>}
+                </tr>)}
+                {!rows.length && <tr><td colSpan={esSoloAdmin ? 8 : 7} className="empty-cell">No hay horarios en el período seleccionado.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      : <ScheduleCalendar
+          rows={rows}
+          anchor={anchor}
+          vista={vista}
+          turnos={catalogs.turnos}
+          onPrev={() => shift(-1)}
+          onNext={() => shift(1)}
+          onToday={() => setAnchor(new Date())}
+        />}
 
     {modal === 'individual' && <AsignarHorarioModal catalogs={catalogs} onClose={() => setModal(null)} onDone={done} />}
     {modal === 'masiva' && <AsignacionMasivaModal catalogs={catalogs} onClose={() => setModal(null)} onDone={done} />}
@@ -818,7 +1040,7 @@ function RegistroAsistenciaModal({ mode, preselected, onClose, onDone }) {
   useEffect(() => {
     if (!selected) { setEstado(null); return }
     api.get(`/Asistencia/estado-hoy/${selected.empleadoId}`)
-      .then(r => setEstado(r.data))
+      .then(r => setEstado(r.data.data))
       .catch(() => setEstado(null))
   }, [selected])
 
@@ -886,7 +1108,7 @@ function ResumenEmpleadoModal({ empleado, onClose }) {
 
   useEffect(() => {
     api.get(`/Asistencia/resumen/${empleado.empleadoId}`, { params: { fechaInicio: inicio, fechaFin: fin } })
-      .then(r => setData(r.data))
+      .then(r => setData(r.data.data))
       .catch(() => setError('No pudimos cargar el resumen.'))
   }, [empleado.empleadoId])
 
@@ -906,8 +1128,11 @@ function ResumenEmpleadoModal({ empleado, onClose }) {
 }
 
 function Attendance() {
+  const { user } = useAuth()
+  const now = new Date()
+  const primerDia = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   const hoy = new Date().toISOString().slice(0, 10)
-  const [fechaInicio, setFechaInicio] = useState(hoy)
+  const [fechaInicio, setFechaInicio] = useState(primerDia)
   const [fechaFin, setFechaFin] = useState(hoy)
   const [estadoFiltro, setEstadoFiltro] = useState('')
   const [data, setData] = useState(null)
@@ -931,14 +1156,22 @@ function Attendance() {
   const enCurso = rows.filter(r => !r.fechaHoraSalida).length
   const horas = Math.round(rows.reduce((a, r) => a + (r.horasTrabajadasReal || 0), 0) * 100) / 100
 
+  const rolEmpleado = esEmpleado(user)
+  const propio = { empleadoId: user.empleadoId, nombreCompleto: user.nombreCompleto }
+
   return <>
     <PageHeader
       eyebrow="CONTROL DE TIEMPO"
-      title="Asistencia"
-      description="Registra entradas y salidas, y compara las horas planificadas con el trabajo real."
+      title={rolEmpleado ? 'Mi asistencia' : 'Asistencia'}
+      description={rolEmpleado
+        ? 'Registra tu entrada y salida, y consulta tu histórico.'
+        : 'Registra entradas y salidas, y compara las horas planificadas con el trabajo real.'}
       action={<div className="report-actions">
-        <button className="ghost-button" onClick={() => setModal({ mode: 'salida', empleado: null })}><LogOut size={16} /> Registrar salida</button>
-        <button className="primary-button compact" onClick={() => setModal({ mode: 'entrada', empleado: null })}><LogIn size={16} /> Registrar entrada</button>
+        {!rolEmpleado && <button className="ghost-button" onClick={() => setModal({ mode: 'salida', empleado: null })}><LogOut size={16} /> Registrar salida</button>}
+        <button className={rolEmpleado ? 'ghost-button' : 'primary-button compact'} onClick={() => setModal({ mode: rolEmpleado ? 'salida' : 'entrada', empleado: rolEmpleado ? propio : null })}>
+          <LogOut size={16} /> {rolEmpleado ? 'Mi salida' : 'Registrar entrada'}
+        </button>
+        {rolEmpleado && <button className="primary-button compact" onClick={() => setModal({ mode: 'entrada', empleado: propio })}><LogIn size={16} /> Mi entrada</button>}
       </div>}
     />
 
@@ -968,22 +1201,22 @@ function Attendance() {
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Empleado</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Retraso</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Empleado</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Retraso</th><th>Estado</th>{!rolEmpleado && <th>Acciones</th>}</tr></thead>
           <tbody>
             {rows.map(row => <tr key={row.asistenciaId}>
-              <td><strong>{row.nombreCompleto}</strong><small className="cell-subtitle">{row.area} · {row.cargo}</small></td>
+              <td><strong>{row.nombreCompleto}</strong>{!rolEmpleado && <small className="cell-subtitle">{row.area} · {row.cargo}</small>}</td>
               <td>{row.fecha}</td>
               <td>{horaCorta(row.fechaHoraEntrada)}</td>
               <td>{horaCorta(row.fechaHoraSalida) || <span className="in-progress">En curso</span>}</td>
               <td>{row.horasTrabajadasReal ?? '—'}</td>
               <td>{row.minutosRetraso > 0 ? <span className="warning-text">{Math.round(row.minutosRetraso)} min</span> : '—'}</td>
               <td><span className={`status-pill ${row.estadoAsistencia === 'Tardanza' ? 'warning' : 'success'}`}><i /> {row.estadoAsistencia}</span></td>
-              <td><div className="row-actions">
+              {!rolEmpleado && <td><div className="row-actions">
                 {!row.fechaHoraSalida && <button className="icon-action" title="Registrar salida" onClick={() => setModal({ mode: 'salida', empleado: { empleadoId: row.empleadoId, nombreCompleto: row.nombreCompleto, area: row.area, cargo: row.cargo } })}><LogOut size={15} /></button>}
                 <button className="icon-action" title="Ver resumen" onClick={() => setModal({ resumen: { empleadoId: row.empleadoId, nombreCompleto: row.nombreCompleto } })}><ClipboardList size={15} /></button>
-              </div></td>
+              </div></td>}
             </tr>)}
-            {!rows.length && <tr><td colSpan="8" className="empty-cell">No hay registros de asistencia en el período seleccionado.</td></tr>}
+            {!rows.length && <tr><td colSpan={rolEmpleado ? 7 : 8} className="empty-cell">No hay registros de asistencia en el período seleccionado.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1101,22 +1334,33 @@ function Reports() {
   </>
 }
 
+function RequireRole({ roles, children }) {
+  const { user } = useAuth()
+  if (!roles.includes(user?.rol)) return <Navigate to="/" replace />
+  return children
+}
+
 function App() {
   return <AuthProvider>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-          <Route index element={<Dashboard />} />
-          <Route path="empleados" element={<Employees />} />
+          <Route index element={<RoleHome />} />
+          <Route path="empleados" element={<RequireRole roles={['Administrador', 'Supervisor']}><Employees /></RequireRole>} />
           <Route path="horarios" element={<Schedules />} />
           <Route path="asistencia" element={<Attendance />} />
-          <Route path="reportes" element={<Reports />} />
+          <Route path="reportes" element={<RequireRole roles={['Administrador', 'Supervisor']}><Reports /></RequireRole>} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   </AuthProvider>
+}
+
+function RoleHome() {
+  const { user } = useAuth()
+  return esEmpleado(user) ? <MiDashboard /> : <Dashboard />
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<BrowserRouter><App /></BrowserRouter>)

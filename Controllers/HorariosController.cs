@@ -16,6 +16,13 @@ public class HorariosController(
     [HttpGet]
     public async Task<IActionResult> Buscar([FromQuery] BuscarHorarioRequest filtro)
     {
+        if (JwtHelper.ObtenerRol(User) == "Empleado")
+        {
+            var empleadoIdPropio = JwtHelper.ObtenerEmpleadoId(User);
+            if (empleadoIdPropio <= 0)
+                return Forbid();
+            filtro.EmpleadoId = empleadoIdPropio;
+        }
         var result = await service.BuscarAsync(filtro);
         return Ok(result);
     }
