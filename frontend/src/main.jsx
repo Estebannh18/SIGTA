@@ -75,7 +75,7 @@ function AppShell() {
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
       <div className="brand">
         <div className="brand-mark">W</div>
-        <div><strong>WorkForce</strong><span>MANAGER PRO</span></div>
+        <div><strong>SIGTA</strong><span>SISTEMA DE TURNOS</span></div>
         <button className="icon-button mobile-close" onClick={() => setOpen(false)}><X size={18} /></button>
       </div>
       <div className="workspace-label">CONTROL CENTER</div>
@@ -139,18 +139,17 @@ function Login() {
     <div className="login-art">
       <div className="login-grid" />
       <div className="login-copy">
-        <div className="brand brand-light"><div className="brand-mark">W</div><div><strong>WorkForce</strong><span>MANAGER PRO</span></div></div>
-        <div>
+        <div className="brand brand-light"><div className="brand-mark">S</div><div><strong>SIGTA</strong><span>SISTEMA DE TURNOS</span></div></div>
+        <div className="login-hero-copy">
           <p className="eyebrow">WORKFORCE INTELLIGENCE</p>
           <h1>El pulso de tu operación, en un solo lugar.</h1>
           <p>Planifica turnos, entiende la asistencia y toma decisiones con datos que se mueven al ritmo de tu equipo.</p>
         </div>
-        <div className="login-stat"><span>08:42</span><small>horas productivas<br />promedio hoy</small><ArrowUpRight size={20} /></div>
       </div>
     </div>
     <div className="login-panel">
       <div className="login-form">
-        <div className="mobile-login-logo brand"><div className="brand-mark">W</div><div><strong>WorkForce</strong><span>MANAGER PRO</span></div></div>
+        <div className="mobile-login-logo brand"><div className="brand-mark">S</div><div><strong>SIGTA</strong><span>SISTEMA DE TURNOS</span></div></div>
         <p className="eyebrow">BIENVENIDO DE VUELTA</p>
         <h2>Inicia tu jornada.</h2>
         <p className="muted">Accede al centro de control de tu organización.</p>
@@ -160,7 +159,7 @@ function Login() {
           {error && <div className="form-error">{error}</div>}
           <button className="primary-button" disabled={loading}>{loading ? 'Validando...' : 'Entrar al workspace'}<ArrowUpRight size={17} /></button>
         </form>
-        <p className="login-foot">WorkForce Manager Pro <span>•</span> Plataforma empresarial</p>
+        <p className="login-foot">SIGTA <span>•</span> Sistema de Gestión de Turnos y Asistencia</p>
       </div>
     </div>
   </div>

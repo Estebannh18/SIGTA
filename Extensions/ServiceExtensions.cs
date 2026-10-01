@@ -71,7 +71,7 @@ public static class ServiceExtensions
         {
             c.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title       = "WorkForce Manager Pro API",
+                Title       = "SIGTA API",
                 Version     = "v1",
                 Description = "API para gestión de turnos y control de horas trabajadas"
             });

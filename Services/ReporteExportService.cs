@@ -196,7 +196,7 @@ public class ReporteExportService : IReporteExportService
     private static void PiePagina(IContainer container) =>
         container.PaddingTop(6).BorderTop(0.5f).BorderColor(Line).Row(row =>
         {
-            row.RelativeItem().Text("WorkForce Manager Pro · Reporte generado automáticamente").FontSize(7).FontColor("#9aa3aa");
+            row.RelativeItem().Text("SIGTA · Reporte generado automáticamente").FontSize(7).FontColor("#9aa3aa");
             row.ConstantItem(90).AlignRight().Text(t =>
             {
                 t.DefaultTextStyle(x => x.FontSize(7).FontColor("#9aa3aa"));

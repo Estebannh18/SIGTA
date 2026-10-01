@@ -1,4 +1,6 @@
-# WorkForce Manager Pro
+# SIGTA
+
+## Sistema de Gestión de Turnos y Asistencia
 
 Sistema empresarial de gestión de personal, turnos y horas trabajadas. El proyecto permite administrar empleados, planificar jornadas, registrar asistencia, calcular cumplimiento y generar reportes operativos.
 
