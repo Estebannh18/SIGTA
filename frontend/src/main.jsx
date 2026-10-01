@@ -16,6 +16,18 @@ api.interceptors.request.use(config => {
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
+api.interceptors.response.use(
+  response => response,
+  error => {
+    const isLoginRequest = error.config?.url?.includes('/Auth/login')
+    if (error.response?.status === 401 && !isLoginRequest) {
+      localStorage.removeItem('wf_token')
+      localStorage.removeItem('wf_user')
+      if (window.location.pathname !== '/login') window.location.replace('/login')
+    }
+    return Promise.reject(error)
+  }
+)
 
 const AuthContext = createContext(null)
 function useAuth() { return useContext(AuthContext) }

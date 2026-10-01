@@ -8,7 +8,7 @@ namespace WorkForceManagerAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Administrador,Supervisor")]
 public class DashboardController(AppDbContext db) : ControllerBase
 {
     [HttpGet("resumen")]

@@ -7,7 +7,7 @@ namespace WorkForceManagerAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Administrador,Supervisor")]
 public class EmpleadosController(IEmpleadoService service) : ControllerBase
 {
     [HttpGet]
