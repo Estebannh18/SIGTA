@@ -60,9 +60,14 @@ function navItems(rol) {
 
 function AppShell() {
   const { user, logout } = useAuth()
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [userOpen, setUserOpen] = useState(false)
+  const cerrarSesion = () => {
+    logout()
+    setOpen(false)
+    setUserOpen(false)
+    window.location.replace('/login')
+  }
 
   useEffect(() => {
     if (!userOpen) return
@@ -74,8 +79,8 @@ function AppShell() {
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
       <div className="brand">
-        <div className="brand-mark">W</div>
-        <div><strong>SIGTA</strong><span>SISTEMA DE TURNOS</span></div>
+        <div className="brand-mark">S</div>
+        <div><strong>SIGTA</strong><span>SISTEMA DE GESTIÓN DE TURNOS Y ASISTENCIA</span></div>
         <button className="icon-button mobile-close" onClick={() => setOpen(false)}><X size={18} /></button>
       </div>
       <div className="workspace-label">CONTROL CENTER</div>
@@ -87,7 +92,7 @@ function AppShell() {
       </nav>
       <div className="sidebar-bottom">
         <div className="security-note"><ShieldCheck size={18} /><div><strong>Entorno seguro</strong><span>Sesión protegida</span></div></div>
-        <button className="logout-button" onClick={() => { logout(); navigate('/login', { replace: true }) }}><LogOut size={17} /> Cerrar sesión</button>
+        <button type="button" className="logout-button" onClick={cerrarSesion}><LogOut size={17} /> Cerrar sesión</button>
       </div>
     </aside>
     <main className="main-area">
@@ -111,7 +116,7 @@ function AppShell() {
                 <span>{user?.email}</span>
                 <em className={`role-tag ${user?.rol?.toLowerCase()}`}>{user?.rol}</em>
               </div>
-              <button className="user-dropdown-logout" onClick={() => { logout(); navigate('/login', { replace: true }) }}><LogOut size={15} /> Cerrar sesión</button>
+              <button type="button" className="user-dropdown-logout" onClick={cerrarSesion}><LogOut size={15} /> Cerrar sesión</button>
             </div>}
           </div>
         </div>
@@ -139,17 +144,17 @@ function Login() {
     <div className="login-art">
       <div className="login-grid" />
       <div className="login-copy">
-        <div className="brand brand-light"><div className="brand-mark">S</div><div><strong>SIGTA</strong><span>SISTEMA DE TURNOS</span></div></div>
+        <div className="brand brand-light"><div className="brand-mark">S</div><div><strong>SIGTA</strong><span>SISTEMA DE GESTIÓN DE TURNOS Y ASISTENCIA</span></div></div>
         <div className="login-hero-copy">
-          <p className="eyebrow">WORKFORCE INTELLIGENCE</p>
-          <h1>El pulso de tu operación, en un solo lugar.</h1>
-          <p>Planifica turnos, entiende la asistencia y toma decisiones con datos que se mueven al ritmo de tu equipo.</p>
+          <p className="eyebrow">SISTEMA DE GESTIÓN DE TURNOS Y ASISTENCIA</p>
+          <h1>Donde tus turnos se convierten en datos.</h1>
+          <p>Planifica jornadas, registra asistencia y analiza el rendimiento de tu equipo en tiempo real.</p>
         </div>
       </div>
     </div>
     <div className="login-panel">
       <div className="login-form">
-        <div className="mobile-login-logo brand"><div className="brand-mark">S</div><div><strong>SIGTA</strong><span>SISTEMA DE TURNOS</span></div></div>
+        <div className="mobile-login-logo brand"><div className="brand-mark">S</div><div><strong>SIGTA</strong><span>SISTEMA DE GESTIÓN DE TURNOS Y ASISTENCIA</span></div></div>
         <p className="eyebrow">BIENVENIDO DE VUELTA</p>
         <h2>Inicia tu jornada.</h2>
         <p className="muted">Accede al centro de control de tu organización.</p>
