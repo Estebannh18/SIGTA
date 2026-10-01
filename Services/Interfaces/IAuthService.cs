@@ -10,4 +10,7 @@ public interface IAuthService
     Task<ApiResponse<UsuarioInfoResponse>> RegisterAsync(RegisterRequest request);
     Task<ApiResponse<bool>> CambiarPasswordAsync(int usuarioId, CambiarPasswordRequest request);
     Task<ApiResponse<UsuarioInfoResponse>> ObtenerPerfilAsync(int usuarioId);
+    Task<IEnumerable<AdminUsuarioResponse>> ObtenerUsuariosAsync();
+    Task<RegistroUsuarioOpcionesResponse> ObtenerOpcionesRegistroAsync();
+    Task<ApiResponse<bool>> CambiarEstadoUsuarioAsync(int usuarioId, bool activo);
 }

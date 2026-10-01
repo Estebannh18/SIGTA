@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using WorkForceManagerAPI.Helpers;
+using WorkForceManagerAPI.Data;
 using WorkForceManagerAPI.Models.Common;
 using WorkForceManagerAPI.Models.DTOs.Request;
 using WorkForceManagerAPI.Models.DTOs.Response;
@@ -11,7 +13,8 @@ namespace WorkForceManagerAPI.Services;
 public class AuthService(
     IAuthRepository authRepo,
     IEmpleadoRepository empleadoRepo,
-    JwtHelper jwt) : IAuthService
+    JwtHelper jwt,
+    AppDbContext db) : IAuthService
 {
     public async Task<ApiResponse<LoginResponse>> LoginAsync(LoginRequest request)
     {
@@ -82,6 +85,45 @@ public class AuthService(
         return usuario is null
             ? ApiResponse<UsuarioInfoResponse>.Fail("Usuario no encontrado.")
             : ApiResponse<UsuarioInfoResponse>.Ok(MapToUsuarioInfo(usuario));
+    }
+
+    public async Task<IEnumerable<AdminUsuarioResponse>> ObtenerUsuariosAsync() =>
+        (await authRepo.ObtenerTodosAsync()).Select(u => new AdminUsuarioResponse
+        {
+            UsuarioId = u.UsuarioId,
+            EmpleadoId = u.EmpleadoId,
+            NombreCompleto = $"{u.Empleado.Nombres} {u.Empleado.Apellidos}",
+            Email = u.Email,
+            Rol = u.Rol.Nombre,
+            RolId = u.RolId,
+            Activo = u.Activo
+        });
+
+    public async Task<RegistroUsuarioOpcionesResponse> ObtenerOpcionesRegistroAsync()
+    {
+        var empleados = await db.Empleados
+            .Where(e => e.Activo && e.Usuario == null)
+            .Include(e => e.Area).Include(e => e.Cargo)
+            .OrderBy(e => e.Apellidos).ThenBy(e => e.Nombres)
+            .Select(e => new EmpleadoDisponibleResponse
+            {
+                EmpleadoId = e.EmpleadoId,
+                NombreCompleto = $"{e.Nombres} {e.Apellidos}",
+                Area = e.Area.Nombre,
+                Cargo = e.Cargo.Nombre
+            }).ToListAsync();
+        var roles = await db.Roles.OrderBy(r => r.RolId)
+            .Select(r => new RolDisponibleResponse { RolId = r.RolId, Nombre = r.Nombre }).ToListAsync();
+        return new RegistroUsuarioOpcionesResponse { Empleados = empleados, Roles = roles };
+    }
+
+    public async Task<ApiResponse<bool>> CambiarEstadoUsuarioAsync(int usuarioId, bool activo)
+    {
+        var usuario = await authRepo.ObtenerPorIdAsync(usuarioId);
+        if (usuario is null) return ApiResponse<bool>.Fail("Usuario no encontrado.");
+        usuario.Activo = activo;
+        await authRepo.ActualizarAsync(usuario);
+        return ApiResponse<bool>.Ok(true, activo ? "Usuario activado." : "Usuario desactivado.");
     }
 
     private static UsuarioInfoResponse MapToUsuarioInfo(Usuario u) => new()

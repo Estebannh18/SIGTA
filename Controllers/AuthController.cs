@@ -30,6 +30,24 @@ public class AuthController(IAuthService service) : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    [HttpGet("usuarios")]
+    [Authorize(Roles = "Administrador")]
+    public async Task<IActionResult> Usuarios() => Ok(await service.ObtenerUsuariosAsync());
+
+    [HttpGet("usuarios/opciones")]
+    [Authorize(Roles = "Administrador")]
+    public async Task<IActionResult> OpcionesRegistro() => Ok(await service.ObtenerOpcionesRegistroAsync());
+
+    [HttpPatch("usuarios/{id:int}/{accion:regex(activar|desactivar)}")]
+    [Authorize(Roles = "Administrador")]
+    public async Task<IActionResult> CambiarEstadoUsuario(int id, string accion)
+    {
+        if (id == JwtHelper.ObtenerUsuarioId(User) && accion == "desactivar")
+            return BadRequest("No puedes desactivar tu propio usuario.");
+        var result = await service.CambiarEstadoUsuarioAsync(id, accion == "activar");
+        return result.Success ? Ok(result) : NotFound(result);
+    }
+
     /// <summary>Cambiar contraseña (usuario autenticado)</summary>
     [HttpPatch("cambiar-password")]
     [Authorize]

@@ -289,6 +289,13 @@ tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; backgro
 .search-box { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0 12px; width: 300px; color: var(--muted-2); background: var(--surface); }
 .search-box input { border: 0; outline: 0; padding: 10px 0; width: 100%; font: 13px var(--font-ui); background: transparent; color: var(--ink); }
 .result-count { font: 500 11px var(--font-mono); color: var(--muted-2); }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.pagination-summary { font: 500 10px var(--font-mono); color: var(--muted-2); }
+.pagination-controls { display: flex; align-items: center; gap: 4px; }
+.pagination-controls .icon-action:disabled { opacity: .35; cursor: not-allowed; }
+.page-number { min-width: 29px; height: 29px; border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; color: var(--muted); font: 600 11px var(--font-mono); cursor: pointer; }
+.page-number:hover { background: var(--paper); color: var(--ink); }
+.page-number.active { background: var(--ink); color: #fff; }
 .person-cell { display: flex; align-items: center; gap: 10px; }
 .person-cell > span {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;

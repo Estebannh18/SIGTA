@@ -6,7 +6,7 @@ import {
   Activity, AlertTriangle, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2,
   ChevronLeft, ChevronRight, ClipboardList, Clock3, FileBarChart, FileSpreadsheet, FileText,
   Layers, LayoutDashboard, LogIn, LogOut, Menu, Pencil, Plus, Power, PowerOff, RefreshCw,
-  Search, ShieldCheck, Trash2, UserCheck, Users, X
+  Search, Settings, ShieldCheck, Trash2, UserCheck, Users, X
 } from 'lucide-react'
 import './styles.css'
 
@@ -51,6 +51,7 @@ const navigation = [
   { to: '/horarios', label: 'Horarios', icon: CalendarDays },
   { to: '/asistencia', label: 'Asistencia', icon: Clock3 },
   { to: '/reportes', label: 'Reportes', icon: FileBarChart, roles: ['Administrador', 'Supervisor'] },
+  { to: '/configuracion', label: 'Configuración', icon: Settings, roles: ['Administrador'] },
 ]
 
 function navItems(rol) {
@@ -169,6 +170,28 @@ function PageHeader({ eyebrow, title, description, action }) {
   return <div className="page-header">
     <div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="muted">{description}</p></div>
     {action}
+  </div>
+}
+
+function Pagination({ data, onPageChange }) {
+  const totalPages = data?.totalPages ?? 0
+  const currentPage = data?.page ?? 1
+  if (totalPages <= 1) return null
+
+  const pages = Array.from({ length: totalPages }, (_, index) => index + 1)
+  return <div className="pagination">
+    <span className="pagination-summary">
+      Página {currentPage} de {totalPages} · {data.totalRecords} registros
+    </span>
+    <div className="pagination-controls">
+      <button className="icon-action" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)} aria-label="Página anterior">
+        <ChevronLeft size={15} />
+      </button>
+      {pages.map(page => <button key={page} className={`page-number ${page === currentPage ? 'active' : ''}`} onClick={() => onPageChange(page)}>{page}</button>)}
+      <button className="icon-action" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)} aria-label="Página siguiente">
+        <ChevronRight size={15} />
+      </button>
+    </div>
   </div>
 }
 
@@ -574,15 +597,16 @@ function Employees() {
   const [modal, setModal] = useState(null)
   const [feedback, setFeedback] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
 
   const load = () => {
     setLoading(true)
-    api.get('/Empleados', { params: { termino: query, pageSize: 50 } })
+    api.get('/Empleados', { params: { termino: query, page, pageSize: 10 } })
       .then(r => setData(r.data))
       .catch(() => setFeedback({ type: 'error', message: 'No pudimos cargar los empleados.' }))
       .finally(() => setLoading(false))
   }
-  useEffect(() => { load() }, [query])
+  useEffect(() => { load() }, [query, page])
   useEffect(() => {
     Promise.all([api.get('/Catalogos/areas'), api.get('/Catalogos/cargos')])
       .then(([a, c]) => setCatalogs({ areas: a.data, cargos: c.data }))
@@ -612,7 +636,7 @@ function Employees() {
     {feedback && <div className={`notice ${feedback.type}`}>{feedback.message}</div>}
     <section className="panel list-panel">
       <div className="list-toolbar">
-        <div className="search-box"><Search size={17} /><input placeholder="Buscar por nombre o documento" value={query} onChange={e => setQuery(e.target.value)} /></div>
+        <div className="search-box"><Search size={17} /><input placeholder="Buscar por nombre o documento" value={query} onChange={e => { setQuery(e.target.value); setPage(1) }} /></div>
         <span className="result-count">{data?.totalRecords ?? 0} registros</span>
       </div>
       <div className="table-wrap">
@@ -632,6 +656,7 @@ function Employees() {
           </tbody>
         </table>
       </div>
+      <Pagination data={data} onPageChange={setPage} />
     </section>
     {modal && <Modal
       title={modal.employee ? 'Editar empleado' : 'Nuevo empleado'}
@@ -860,6 +885,7 @@ function Schedules() {
   const [catalogs, setCatalogs] = useState({ areas: [], turnos: [] })
   const [feedback, setFeedback] = useState(null)
   const [modal, setModal] = useState(null)
+  const [page, setPage] = useState(1)
 
   const rangoCalendario = () => {
     if (vista === 'semana') {
@@ -872,11 +898,11 @@ function Schedules() {
 
   const load = () => {
     const p = vista === 'lista' ? { fechaInicio, fechaFin } : rangoCalendario()
-    api.get('/Horarios', { params: { ...p, areaId: areaId || undefined, pageSize: 500 } })
+    api.get('/Horarios', { params: { ...p, areaId: areaId || undefined, page: vista === 'lista' ? page : 1, pageSize: vista === 'lista' ? 10 : 500 } })
       .then(r => setData(r.data))
       .catch(() => setFeedback({ type: 'error', message: 'No pudimos cargar los horarios.' }))
   }
-  useEffect(() => { load() }, [vista, anchor, fechaInicio, fechaFin, areaId])
+  useEffect(() => { load() }, [vista, anchor, fechaInicio, fechaFin, areaId, page])
   useEffect(() => {
     Promise.all([api.get('/Catalogos/areas'), api.get('/Catalogos/tipos-turno')])
       .then(([a, t]) => setCatalogs({ areas: a.data, turnos: t.data }))
@@ -921,15 +947,15 @@ function Schedules() {
     <section className="panel report-controls">
       <div className="segmented">
         {[{ id: 'lista', label: 'Lista' }, { id: 'semana', label: 'Semana' }, { id: 'mes', label: 'Mes' }].map(v =>
-          <button key={v.id} className={vista === v.id ? 'active' : ''} onClick={() => setVista(v.id)}>{v.label}</button>)}
+          <button key={v.id} className={vista === v.id ? 'active' : ''} onClick={() => { setVista(v.id); setPage(1) }}>{v.label}</button>)}
       </div>
       <div className="toolbar-filters">
         {vista === 'lista' && <>
-          <label className="filter-field">Desde<input type="date" value={fechaInicio} max={fechaFin} onChange={e => setFechaInicio(e.target.value)} /></label>
-          <label className="filter-field">Hasta<input type="date" value={fechaFin} min={fechaInicio} onChange={e => setFechaFin(e.target.value)} /></label>
+          <label className="filter-field">Desde<input type="date" value={fechaInicio} max={fechaFin} onChange={e => { setFechaInicio(e.target.value); setPage(1) }} /></label>
+          <label className="filter-field">Hasta<input type="date" value={fechaFin} min={fechaInicio} onChange={e => { setFechaFin(e.target.value); setPage(1) }} /></label>
         </>}
         <label className="filter-field">Área
-          <select value={areaId} onChange={e => setAreaId(e.target.value)}>
+          <select value={areaId} onChange={e => { setAreaId(e.target.value); setPage(1) }}>
             <option value="">Todas</option>
             {catalogs.areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
           </select>
@@ -961,8 +987,9 @@ function Schedules() {
                 </tr>)}
                 {!rows.length && <tr><td colSpan={esSoloAdmin ? 8 : 7} className="empty-cell">No hay horarios en el período seleccionado.</td></tr>}
               </tbody>
-            </table>
+           </table>
           </div>
+          <Pagination data={data} onPageChange={setPage} />
         </section>
       : <ScheduleCalendar
           rows={rows}
@@ -1138,15 +1165,16 @@ function Attendance() {
   const [data, setData] = useState(null)
   const [feedback, setFeedback] = useState(null)
   const [modal, setModal] = useState(null)
+  const [page, setPage] = useState(1)
 
   const load = () => {
     api.get('/Asistencia', {
-      params: { fechaInicio, fechaFin, estadoAsistencia: estadoFiltro || undefined, pageSize: 100 }
+      params: { fechaInicio, fechaFin, estadoAsistencia: estadoFiltro || undefined, page, pageSize: 10 }
     })
       .then(r => setData(r.data))
       .catch(() => setFeedback({ type: 'error', message: 'No pudimos cargar la asistencia.' }))
   }
-  useEffect(() => { load() }, [fechaInicio, fechaFin, estadoFiltro])
+  useEffect(() => { load() }, [fechaInicio, fechaFin, estadoFiltro, page])
 
   function done(message) { setModal(null); setFeedback({ type: 'ok', message }); load() }
 
@@ -1187,10 +1215,10 @@ function Attendance() {
     <section className="panel list-panel">
       <div className="list-toolbar">
         <div className="toolbar-filters">
-          <label className="filter-field">Desde<input type="date" value={fechaInicio} max={fechaFin} onChange={e => setFechaInicio(e.target.value)} /></label>
-          <label className="filter-field">Hasta<input type="date" value={fechaFin} min={fechaInicio} onChange={e => setFechaFin(e.target.value)} /></label>
+          <label className="filter-field">Desde<input type="date" value={fechaInicio} max={fechaFin} onChange={e => { setFechaInicio(e.target.value); setPage(1) }} /></label>
+          <label className="filter-field">Hasta<input type="date" value={fechaFin} min={fechaInicio} onChange={e => { setFechaFin(e.target.value); setPage(1) }} /></label>
           <label className="filter-field">Estado
-            <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)}>
+            <select value={estadoFiltro} onChange={e => { setEstadoFiltro(e.target.value); setPage(1) }}>
               <option value="">Todos</option>
               {['Presente', 'Tardanza', 'SalidaTemprana', 'AusenciaJustificada', 'AusenciaInjustificada'].map(e => <option key={e} value={e}>{e}</option>)}
             </select>
@@ -1198,6 +1226,7 @@ function Attendance() {
         </div>
         <span className="result-count">{data?.totalRecords ?? 0} registros</span>
       </div>
+      <Pagination data={data} onPageChange={setPage} />
 
       <div className="table-wrap">
         <table>
@@ -1334,6 +1363,157 @@ function Reports() {
   </>
 }
 
+const catalogDefinitions = {
+  areas: { label: 'Áreas', endpoint: 'areas', fields: ['nombre', 'descripcion'] },
+  cargos: { label: 'Cargos', endpoint: 'cargos', fields: ['nombre', 'descripcion'] },
+  turnos: { label: 'Tipos de turno', endpoint: 'tipos-turno', fields: ['nombre', 'horaInicio', 'horaFin', 'horasEsperadas'] },
+}
+
+function CatalogoForm({ type, item, onClose, onSaved }) {
+  const [form, setForm] = useState(item || {
+    nombre: '', descripcion: '', horaInicio: '07:00', horaFin: '16:00', horasEsperadas: '8'
+  })
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const def = catalogDefinitions[type]
+  const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
+
+  async function submit(e) {
+    e.preventDefault(); setError(''); setSaving(true)
+    const payload = type === 'turnos'
+      ? { nombre: form.nombre.trim(), horaInicio: `${form.horaInicio}:00`, horaFin: `${form.horaFin}:00`, horasEsperadas: Number(form.horasEsperadas) }
+      : { nombre: form.nombre.trim(), descripcion: form.descripcion?.trim() || null }
+    try {
+      const url = `/Catalogos/${def.endpoint}${item ? `/${item.id}` : ''}`
+      if (item) await api.put(url, payload)
+      else await api.post(url, payload)
+      onSaved(item ? 'Catálogo actualizado correctamente.' : 'Registro creado correctamente.')
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo guardar el registro.')
+    } finally { setSaving(false) }
+  }
+
+  return <Modal title={item ? `Editar ${def.label.slice(0, -1)}` : `Nuevo registro`} subtitle="CONFIGURACIÓN" onClose={onClose}>
+    <form className="form-grid" onSubmit={submit}>
+      <label className="span-2">Nombre<input value={form.nombre} onChange={e => set('nombre', e.target.value)} required maxLength={100} /></label>
+      {type !== 'turnos' && <label className="span-2">Descripción<textarea rows={3} value={form.descripcion || ''} onChange={e => set('descripcion', e.target.value)} /></label>}
+      {type === 'turnos' && <>
+        <label>Hora de inicio<input type="time" value={String(form.horaInicio).slice(0, 5)} onChange={e => set('horaInicio', e.target.value)} required /></label>
+        <label>Hora de fin<input type="time" value={String(form.horaFin).slice(0, 5)} onChange={e => set('horaFin', e.target.value)} required /></label>
+        <label className="span-2">Horas esperadas<input type="number" min="0.01" max="24" step="0.25" value={form.horasEsperadas} onChange={e => set('horasEsperadas', e.target.value)} required /></label>
+      </>}
+      {error && <div className="form-error span-2">{error}</div>}
+      <div className="modal-actions span-2">
+        <button type="button" className="ghost-button" onClick={onClose}>Cancelar</button>
+        <button type="submit" className="primary-button compact" disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+      </div>
+    </form>
+  </Modal>
+}
+
+function UsuarioForm({ options, onClose, onSaved }) {
+  const [form, setForm] = useState({ empleadoId: '', rolId: '', password: '' })
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
+  const empleado = options.empleados.find(e => String(e.empleadoId) === String(form.empleadoId))
+
+  async function submit(e) {
+    e.preventDefault(); setError(''); setSaving(true)
+    try {
+      await api.post('/Auth/register', {
+        empleadoId: Number(form.empleadoId),
+        email: form.email,
+        password: form.password,
+        rolId: Number(form.rolId)
+      })
+      onSaved('Usuario registrado correctamente.')
+    } catch (err) { setError(err.response?.data?.message || 'No se pudo registrar el usuario.') }
+    finally { setSaving(false) }
+  }
+
+  return <Modal title="Nuevo usuario" subtitle="ACCESO AL SISTEMA" onClose={onClose}>
+    <form className="form-grid" onSubmit={submit}>
+      <label className="span-2">Empleado
+        <select value={form.empleadoId} onChange={e => set('empleadoId', e.target.value)} required>
+          <option value="">Selecciona un empleado sin usuario</option>
+          {options.empleados.map(e => <option key={e.empleadoId} value={e.empleadoId}>{e.nombreCompleto} · {e.area}</option>)}
+        </select>
+      </label>
+      {empleado && <div className="summary-box span-2"><div><span>Empleado</span><strong>{empleado.nombreCompleto}</strong></div><div><span>Área</span><strong>{empleado.area}</strong></div><div><span>Cargo</span><strong>{empleado.cargo}</strong></div></div>}
+      <label className="span-2">Correo electrónico<input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} required maxLength={150} placeholder="persona@empresa.com" /></label>
+      <label>Rol<select value={form.rolId} onChange={e => set('rolId', e.target.value)} required><option value="">Selecciona un rol</option>{options.roles.map(r => <option key={r.rolId} value={r.rolId}>{r.nombre}</option>)}</select></label>
+      <label>Contraseña<input type="password" value={form.password} onChange={e => set('password', e.target.value)} required minLength={8} placeholder="Mínimo 8 caracteres" /></label>
+      {error && <div className="form-error span-2">{error}</div>}
+      <div className="modal-actions span-2"><button type="button" className="ghost-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button compact" disabled={saving}>{saving ? 'Registrando...' : 'Registrar usuario'}</button></div>
+    </form>
+  </Modal>
+}
+
+function UsuariosPanel({ open, onClose }) {
+  const [rows, setRows] = useState([])
+  const [options, setOptions] = useState({ empleados: [], roles: [] })
+  const [modal, setModal] = useState(false)
+  const [feedback, setFeedback] = useState(null)
+  const load = () => Promise.all([api.get('/Auth/usuarios'), api.get('/Auth/usuarios/opciones')]).then(([u, o]) => { setRows(u.data); setOptions(o.data) }).catch(() => setFeedback({ type: 'error', message: 'No pudimos cargar los usuarios.' }))
+  useEffect(() => { load() }, [])
+  useEffect(() => { if (open) setModal(true) }, [open])
+  async function toggle(row) { try { await api.patch(`/Auth/usuarios/${row.usuarioId}/${row.activo ? 'desactivar' : 'activar'}`); setFeedback({ type: 'ok', message: row.activo ? 'Usuario desactivado.' : 'Usuario activado.' }); load() } catch (err) { setFeedback({ type: 'error', message: err.response?.data?.message || 'No se pudo cambiar el estado.' }) } }
+  return <>
+    {feedback && <div className={`notice ${feedback.type}`}>{feedback.message}</div>}
+    <section className="panel list-panel"><div className="list-toolbar"><span className="eyebrow">CUENTAS REGISTRADAS</span><span className="result-count">{rows.length} usuarios</span></div><div className="table-wrap"><table><thead><tr><th>Usuario</th><th>Empleado</th><th>Rol</th><th>Correo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{rows.map(row => <tr key={row.usuarioId}><td>#{row.usuarioId}</td><td><strong>{row.nombreCompleto}</strong></td><td><span className="role-tag">{row.rol}</span></td><td>{row.email}</td><td><span className={`status-pill ${row.activo ? 'success' : 'muted'}`}><i /> {row.activo ? 'Activo' : 'Inactivo'}</span></td><td><button className="icon-action" onClick={() => toggle(row)}>{row.activo ? <PowerOff size={15} /> : <Power size={15} />}</button></td></tr>)}{!rows.length && <tr><td colSpan="6" className="empty-cell">No hay usuarios registrados.</td></tr>}</tbody></table></div></section>
+    {modal && <UsuarioForm options={options} onClose={() => { setModal(false); onClose() }} onSaved={message => { setModal(false); onClose(); setFeedback({ type: 'ok', message }); load() }} />}
+  </>
+}
+
+function Configuracion() {
+  const [type, setType] = useState('areas')
+  const [rows, setRows] = useState([])
+  const [modal, setModal] = useState(null)
+  const [feedback, setFeedback] = useState(null)
+  const def = catalogDefinitions[type]
+
+  const load = () => def && api.get(`/Catalogos/admin/${def.endpoint}`).then(r => setRows(r.data)).catch(() => setFeedback({ type: 'error', message: 'No pudimos cargar el catálogo.' }))
+  useEffect(() => { if (type !== 'usuarios') load() }, [type])
+
+  function saved(message) { setModal(null); setFeedback({ type: 'ok', message }); load() }
+
+  async function toggle(row) {
+    try {
+      await api.patch(`/Catalogos/${def.endpoint}/${row.id}/${row.activo ? 'desactivar' : 'activar'}`)
+      setFeedback({ type: 'ok', message: row.activo ? 'Registro desactivado.' : 'Registro activado.' })
+      load()
+    } catch (err) { setFeedback({ type: 'error', message: err.response?.data?.message || 'No se pudo cambiar el estado.' }) }
+  }
+
+  const usuarios = type === 'usuarios'
+  return <>
+    <PageHeader eyebrow="CONFIGURACIÓN DEL SISTEMA" title={usuarios ? 'Usuarios' : 'Catálogos'} description={usuarios ? 'Crea y administra las cuentas de acceso al sistema.' : 'Administra las opciones que alimentan empleados, horarios y reportes.'} action={<button className="primary-button compact" onClick={() => usuarios ? setModal({ user: true }) : setModal({ item: null })}><Plus size={16} /> Nuevo registro</button>} />
+    {feedback && <div className={`notice ${feedback.type}`}>{feedback.message}</div>}
+    <section className="panel report-controls">
+      <div className="segmented">
+        {[...Object.entries(catalogDefinitions), ['usuarios', { label: 'Usuarios' }]].map(([id, value]) => <button key={id} className={type === id ? 'active' : ''} onClick={() => { setType(id); setModal(null); setFeedback(null) }}>{value.label}</button>)}
+      </div>
+      {!usuarios && <span className="result-count">{rows.length} registros</span>}
+    </section>
+    {usuarios ? <UsuariosPanel open={modal?.user} onClose={() => setModal(null)} /> : <section className="panel list-panel">
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Nombre</th>{type !== 'turnos' && <th>Descripción</th>}{type === 'turnos' && <><th>Inicio</th><th>Fin</th><th>Horas</th></>}<th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>{rows.map(row => <tr key={row.id}>
+            <td><strong>{row.nombre}</strong></td>
+            {type !== 'turnos' && <td>{row.descripcion || '—'}</td>}
+            {type === 'turnos' && <><td>{String(row.horaInicio).slice(0, 5)}</td><td>{String(row.horaFin).slice(0, 5)}</td><td>{row.horasEsperadas}h</td></>}
+            <td><span className={`status-pill ${row.activo ? 'success' : 'muted'}`}><i /> {row.activo ? 'Activo' : 'Inactivo'}</span></td>
+            <td><div className="row-actions"><button className="icon-action" title="Editar" onClick={() => setModal({ item: row })}><Pencil size={15} /></button><button className="icon-action" title={row.activo ? 'Desactivar' : 'Activar'} onClick={() => toggle(row)}>{row.activo ? <PowerOff size={15} /> : <Power size={15} />}</button></div></td>
+          </tr>)}{!rows.length && <tr><td colSpan="6" className="empty-cell">No hay registros.</td></tr>}</tbody>
+        </table>
+      </div>
+    </section>}
+    {modal?.item !== undefined && <CatalogoForm type={type} item={modal.item} onClose={() => setModal(null)} onSaved={saved} />}
+  </>
+}
+
 function RequireRole({ roles, children }) {
   const { user } = useAuth()
   if (!roles.includes(user?.rol)) return <Navigate to="/" replace />
@@ -1351,6 +1531,7 @@ function App() {
           <Route path="horarios" element={<Schedules />} />
           <Route path="asistencia" element={<Attendance />} />
           <Route path="reportes" element={<RequireRole roles={['Administrador', 'Supervisor']}><Reports /></RequireRole>} />
+          <Route path="configuracion" element={<RequireRole roles={['Administrador']}><Configuracion /></RequireRole>} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

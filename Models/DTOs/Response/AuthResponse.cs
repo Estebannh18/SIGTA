@@ -16,3 +16,28 @@ public class UsuarioInfoResponse
     public string Rol { get; set; } = string.Empty;
     public int RolId { get; set; }
 }
+
+public class AdminUsuarioResponse : UsuarioInfoResponse
+{
+    public bool Activo { get; set; }
+}
+
+public class EmpleadoDisponibleResponse
+{
+    public int EmpleadoId { get; set; }
+    public string NombreCompleto { get; set; } = string.Empty;
+    public string Area { get; set; } = string.Empty;
+    public string Cargo { get; set; } = string.Empty;
+}
+
+public class RolDisponibleResponse
+{
+    public int RolId { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+}
+
+public class RegistroUsuarioOpcionesResponse
+{
+    public IEnumerable<EmpleadoDisponibleResponse> Empleados { get; set; } = [];
+    public IEnumerable<RolDisponibleResponse> Roles { get; set; } = [];
+}

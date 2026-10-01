@@ -20,6 +20,9 @@ public class AuthRepository(AppDbContext db) : IAuthRepository
         await ConRelaciones()
             .FirstOrDefaultAsync(u => u.UsuarioId == usuarioId);
 
+    public async Task<IEnumerable<Usuario>> ObtenerTodosAsync() =>
+        await ConRelaciones().OrderBy(u => u.Empleado.Apellidos).ThenBy(u => u.Empleado.Nombres).ToListAsync();
+
     public async Task<bool> ExisteEmailAsync(string email) =>
         await db.Usuarios.AnyAsync(u => u.Email == email);
 
